@@ -1,4 +1,4 @@
-# Determining the minimax value for given positions of the Reversi game, using Alpha-Beta Pruning.
+# Determining the minimax value for given positions of the Reversi game using Alpha-Beta Pruning.
 ## CSCI 561: Foundations of Artificial Intelligence
 ### Homework #1
 
