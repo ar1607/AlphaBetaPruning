@@ -1,3 +1,5 @@
+#code for Assignment #1
+#CSCI-561 Spring 2017
 import numpy
 
 def readFromFile(fname):
