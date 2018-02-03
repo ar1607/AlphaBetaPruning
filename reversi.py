@@ -1,323 +1,561 @@
-#code for Assignment #1
-#CSCI-561 Spring 2017
-import numpy
-
-def readFromFile(fname):
-	inputArray=[]
-	with open(fname) as f:
-		inputArray = f.readlines()
-	
-	inputArray = [x.strip() for x in inputArray]
-
-	currentPlayer = inputArray[0] #we store the player we are supposed to play with in this variable from the inputArray
-	inputArray.pop(0) #and then we remove it from the inputArray
-	depth = int(inputArray[0]) #we store the depth in this variable from the inputArray & depth changed from Type String to Int
-	inputArray.pop(0) #and then we remove it from the inputArray
-
-	arr=["-"]*100
-	
-	i,j=0,0
-	x=11
-	while i<=7 and j<=7:
-		while j<=7:
-			arr[x] = inputArray[i][j]
-			x+=1
-			j+=1
-		x+=2
-		j=0
-		i+=1
-	return currentPlayer,depth,arr, inputArray
+import os
+import logging
+import sys
+import operator
+import getopt
+from copy import deepcopy
 
 
-def currentPlayerPositions(initArray, currentPlayer): #gives us all the possible current positions of the currentPlayer
-	i,arr,x=11,[]*64,0
-	while i<89:
-		if initArray[i]==currentPlayer:
-			arr.append(i)
-		i+=1
-	return arr
+gridSize = 8
+rfile = open(sys.argv[0], 'r')
+trav_log = str()
+count = 0
+Inputs = {}
+Inputs["Player_Turn"] = rfile.readline().rstrip('\n')
+Inputs["Depth"] = int(rfile.readline().rstrip('\n'))
+start_board = []
+n = 0
+while(n < 8):
+    start_board.append(list(rfile.readline().strip()))
+    n = n+1
+Inputs["Board"] = start_board
+player_to_move = Inputs["Player_Turn"]
+rowsadjust = [1, 2, 3, 4, 5, 6, 7, 8]
+columnsadjust = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+def get_input_file():
+	opts, args = getopt.getopt(sys.argv[1:], "i:")
+  	if len(opts) != 0:
+   		return opts[0][1]
+  	else:
+   		return "./input.txt"
 
-def evalFunctionComputation(initArray, currentPlayer): #will help to get the computation of the evaluation function to us
-	evalFunctionArray = numpy.array(([99,-8,8,6,6,8,-8,99],
-	[-8,-24,-4,-3,-3,-4,-24,-8],
-	[8,-4,7,4,4,7,-4,8],
-	[6,-3,4,0,0,4,-3,6],
-	[6,-3,4,0,0,4,-3,6],
-	[8,-4,7,4,4,7,-4,8],
-	[-8,-24,-4,-3,-3,-4,-24,-8],
-	[99,-8,8,6,6,8,-8,99]), dtype=int)
-	arrX = currentPlayerPositions(initArray, 'X')
-	#print arrX #testing
-	arrO = currentPlayerPositions(initArray, 'O')
-	#print arrO #testing
-	sumX, sumO = 0,0
-	if not arrX:
-		sumX=0
-	else:
-		length = len(arrX)
-		for a in range(0,length):
-			j=arrX[a]%10 -1#j component
-			i=arrX[a]/10 -1#i component
-			sumX+=evalFunctionArray[i][j]
-			#print sumX#testing
+###Method to get opponent
+def getOpponent(player):
+    if player == "X":
+        return "O"
+    return "X"
 
-	if not arrO:
-		sumO=0
-	else:
-		length = len(arrO)
-		for a in range(0, length-1):
-			j=arrO[a]%10 - 1 #j component
-			i=arrO[a]/10 - 1#i component
-			sumO+=evalFunctionArray[i][j]
-			#print sumO#testing
+### Method to check for valid moves and return the tiles to flip.
+def ValidMoveFinder(board, my_player, xpush, ypush):
 
-	#print 'currentPlayer ',currentPlayer#testing
+    if board[xpush][ypush] != "*" or not isOnBoard(xpush, ypush):
+        return False
+    board[xpush][ypush] = my_player
+    otherplayer = getOpponent(my_player)
+    flipped_tiles = gettileswon(board,xpush,ypush, my_player, otherplayer)
+    board[xpush][ypush] = "*"
+    if len(flipped_tiles) == 0:
+        return False
+    return flipped_tiles
 
-	if currentPlayer=='X':
-		return sumX-sumO
-	else:
-		return sumO-sumX
+###Method to find the tileswon by the player
+def gettileswon(board,xpush, ypush, my_player, otherplayer):
+    tileswon = []
+    for directionx, directiony in ([[0, 1], [1, 1], [1, 0], [1, -1], [0, -1], [-1, -1], [-1, 0], [-1, 1]]):
+        x = xpush
+        x = x + directionx
+        y = ypush
+        y = y + directiony
 
-def outputToFile(outputFileName, inputArray, outputArray):
-	with open(outputFileName, 'w+') as file:
-		for i in inputArray:
-			file.write(str(i)+'\n')
-		for i in range(0,len(outputArray)-1):
-			file.write(outputArray[i]+'\n')
-		file.write(outputArray[len(outputArray)-1])
-
-def convertArray(initArray):
-	x,i,resString,inputArray=11,1,'',[]
-	while x<89:
-		while i<=8:
-			resString+=initArray[x]
-			x+=1
-			i+=1
-		inputArray.append(resString)
-		x+=2
-		i=1
-		resString=''
-	return inputArray
-
-def nodeName(lastModifiedPosition): #return the name of the current node that we are in.
-	a = lastModifiedPosition%10
-	b = lastModifiedPosition/10
-	a = chr(a+96)
-	b = str(b)
-	name = a+b
-	return name 
-
-def findBracket(initArray, currentPlayerPosition, currentPlayer, opponent):
-	arr=[]*10
-	for key, value in actions.iteritems():
-		bracket = currentPlayerPosition+value
-		if initArray[bracket]==opponent:
-			while initArray[bracket]==opponent:
-				bracket+=value
-			if initArray[bracket]!='-':
-				arr.append(str(bracket)+','+key)
-	return arr
+        if isOnBoard(x,y) and board[x][y] == otherplayer:
+            x = x + directionx
+            y = y + directiony
+            if not isOnBoard(x,y):
+                continue
+            while board[x][y] == otherplayer:
+                x = x + directionx
+                y = y + directiony
+                if not isOnBoard(x,y):
+                    break
+            if not isOnBoard(x,y):
+                continue
 
 
+            if board[x][y] == my_player:
+                #start traversing in reverse to find
+                while True:
+                    x = x - directionx
+                    y = y - directiony
+                    if x == xpush and y == ypush:
+                        break
+                    tileswon.append((x,y))
+    return tileswon
 
-def isValidMovePossible(initArray, currentPlayerPosition, currentPlayer, opponent):
-	arr = findBracket(initArray, currentPlayerPosition, currentPlayer, opponent)
-	opponentPlayerPositionsArray = currentPlayerPositions(initArray, opponent)
-	if not arr and not opponentPlayerPositionsArray:
-		return False, []
-	return True, arr
+### Method check if the move is on board or not.
+def isOnBoard(x, y):
+    return ((x >= 0) and (x <= 7)) and ((y >= 0) and (y <= 7))
 
-def getAlphaBetaValueString(number):
-	b = float('inf')
-	a = (-1)*float('inf')
-	if number==a:
-		return '-Infinity'
-	elif number==b:
-		return 'Infinity'
-	else:
-		return str(number)
+# Method to generate moves and find if the moves are valid.
+def generate_moves(board, player):
+    moves  = list()
+    i, j = 0, 0
+    while i < 8:
+        j = 0
+        while j < 8:
 
-def getOutputString(lastModifiedPosition, currentDepth, value, alpha, beta, outputArray):
-	outputString=''
-	if lastModifiedPosition==-1:
-		name='pass'
-	else:
-		name=nodeName(lastModifiedPosition)
-	if currentDepth==0:
-		name='root'
-	value = getAlphaBetaValueString(value)
-	alphaString = getAlphaBetaValueString(alpha)
-	betaString = getAlphaBetaValueString(beta)
-	outputString = name+','+str(currentDepth)+','+str(value)+','+alphaString+','+betaString
-	print outputString #just a test to see if this is working
-	outputArray.append(outputString)
+           if ValidMoveFinder(board, player, i, j) != False:
+                moves.append((i, j))
 
-def nextDepthVal(number):
-	neginf=(-1)*float('inf')
-	posinf = float('inf')
-	if number==posinf:
-		return neginf
-	elif number==neginf:
-		return posinf
-	else:
-		return number
+           j += 1
+        i += 1
 
-def outputPassed(outputArray):
-	length = len(outputArray)-1
-	a = outputArray[length].split(',')
-	b = outputArray[length-1].split(',')
+    return moves
 
-	if a[0]=='pass' and b[0]=='pass':
-		return True
-	else:
-		return False
+###Method to make a move by the player
+def Take_Move(new_board, move, player):
+    copy_board = deepcopy(new_board)
+    i = move[0]
+    j = move[1]
+    flip = ValidMoveFinder(copy_board, player, i, j)
+    if flip == False: return copy_board
 
-def find_move(initArray, outputArray, currentDepth, depth, value, alpha, beta, currentPlayer, opponent, lastModifiedPosition, currentPlayerPositionsArray):
+    copy_board[i][j] = player
+    for x,y in flip:
+        copy_board[x][y] = player
+    return copy_board
 
-	if currentDepth==depth:
-		#currentDepth is equal to the depth
-		#print "*leaf node*" #testing
-		currValue = evalFunctionComputation(initArray, currentPlayer)
-		value = currValue
-		getOutputString(lastModifiedPosition, currentDepth, value, alpha, beta, outputArray)
-		return value
-		#currentDepth is equal to the depth
+###Method to Evaluate Scores
+def getEvaluation(me, opponent, board):
+    my_score = 0
+    opponent_score = 0
+    i=0
+    for i in range (8):
+        for j in range(8):
+            if board[i][j] == "*":
+                continue
+            elif board[i][j] == me:
+                my_score += boardPositionalWeight(i,j)
 
-	else:	
-	#current depth is not equal to given depth
-		#print currentPlayer, opponent
-		if not currentPlayerPositionsArray:
-		#that is current player has no tile on the board
-			oa = outputArray[len(outputArray)-1].split(',')
-			if oa[0]=='pass':
-			#if the previous ply was a pass
-				#print "*passing - terminal state reached*"#testing
-				currValue = evalFunctionComputation(initArray, opponent)
-				print '**', currentPlayer, opponent, currValue
-				value = currValue
-				getOutputString(-1, currentDepth, nextDepthVal(value), alpha, beta, outputArray)
-				return value
-			#if the previous ply was a pass
-			else:
-			#if the previous ply was not a pass
-				#print '*one pass recorded*'#testing
-				getOutputString(-1,currentDepth, nextDepthVal(value), alpha,beta, outputArray)
-				opponentPlayerPositionsArray = currentPlayerPositions(initArray, opponent)
-				#print currentPlayerPositionsArray
-				if not currentPlayerPositionsArray:
-					#print '*going here*'#testing
-					value = find_move(initArray, outputArray, currentDepth+1, depth, nextDepthVal(value), alpha, beta, opponent, currentPlayer, -1, opponentPlayerPositionsArray)
-				else:
-					#print '*in the else*'#testing
-					for i in opponentPlayerPositionsArray:
-					#looping over all the positions occupied by the opponent
-						value = find_move(initArray, outputArray, currentDepth+1, depth, nextDepthVal(value), alpha, beta, opponent, currentPlayer, i, opponentPlayerPositionsArray)
-						return value
-					#looping over all the positions occupied by the opponent
+            else:
 
-			#if the previous ply was not a pass
-		#that is current player has no tile on the board
-		else:
-		#current player has tiles on the board
-			invalidCounter=0
-			for i in currentPlayerPositionsArray:
-			#looping over all the positions occupied by the current player
-				validMoveExists,validMovesArray=isValidMovePossible(initArray, i, currentPlayer, opponent)
-				if validMoveExists==False:
-				#no valid move exists
-					#print 'no valid move'#testing
-					invalidCounter+=1
-					continue
-				#no valid move exists
-				else:
-				#valid move exists
-					#print 'else block'#testing
-					for j in validMovesArray:
-					#looping over all the valid moves available
-						validMovesArrayElements = j.split(',')
-						validMovesArrayElements[0] = int(validMovesArrayElements[0])
-						getOutputString(validMovesArrayElements[0], currentDepth, nextDepthVal(value), alpha, beta, outputArray)
-						initArrayN = initArray
-						initArrayN[validMovesArrayElements[0]] = currentPlayer
-						iterator = i+actions.get(validMovesArrayElements[1])
-						while  initArrayN[iterator]!=currentPlayer:
-							initArrayN[iterator]=currentPlayer
-							iterator+=actions.get(validMovesArrayElements[1])
-						lastModifiedPosition = iterator
-						#print opponent
-						opponentPlayerPositionsArray = currentPlayerPositions(initArray, opponent)
-						#print opponentPlayerPositionsArray
-						#print '*outside the loop*'#testing
-						if not opponentPlayerPositionsArray:
-							value = find_move(initArrayN, outputArray, currentDepth+1, depth, nextDepthVal(value), alpha, beta, opponent, currentPlayer, -1, opponentPlayerPositionsArray)
-						else:
-							for k in opponentPlayerPositionsArray:
-							#print currentPlayer, opponent
-								#print '*in the loop*'#testing
-								value = find_move(initArrayN, outputArray, currentDepth+1, depth, nextDepthVal(value), alpha, beta, opponent, currentPlayer, lastModifiedPosition, opponentPlayerPositionsArray)
-								#print value#testing
-								if currentDepth%2==0:
-									alpha=value
-								else:
-									beta=value
-								getOutputString(i, currentDepth, value, alpha, beta, outputArray)
+                opponent_score +=boardPositionalWeight(i,j)
+            j += 1
+        i += 1
+    return my_score - opponent_score
 
-						initArrayN = initArray
-					#looping over all the valid moves available
-				#valid move exists
-			#looping over all the positions occupied by the current player
-			if invalidCounter==len(currentPlayerPositionsArray):
-				opponentPlayerPositionsArray = currentPlayerPositions(initArray, opponent)
-				#print 'invalid counter', opponentPlayerPositionsArray#testing
-				getOutputString(-1, currentDepth, nextDepthVal(value), alpha, beta, outputArray)
-				value = find_move(initArray, outputArray, currentDepth+1, depth, nextDepthVal(value), alpha, beta, opponent, currentPlayer, lastModifiedPosition, opponentPlayerPositionsArray)
-				if currentDepth%2==0:
-					alpha = value
-				else:
-					beta = value
-				getOutputString(-1, currentDepth, value, alpha, beta, outputArray)
-				return value
+def output_log(self):
+    wfile = open("./trav_log.txt", "w")
+    for i in range(0, len(self.trav_log)):
+        if i == len(self.trav_log) - 1:
+            wfile.write(self.trav_log[i])
+        else:
+            wfile.write(self.trav_log[i] + "\n")
 
-		#current player has tiles on the board
+def max_to_string(self, value):
+    if value == self.int_min:
+        return "-Infinity"
+    if value == self.int_max:
+        return "Infinity"
+    return value
 
-	#current depth is not equal to given depth
-		if currentDepth!=depth or outputPassed(outputArray)==False:
-			#print '*end of loop*', value, currentDepth#testing
-			if currentDepth%2==0:
-				alpha = value
-			else:
-				beta = value
-			getOutputString(lastModifiedPosition,currentDepth, value, alpha, beta, outputArray)
-		return value #returns the value to main
+###Method to find positonal weights of each grid.
+def boardPositionalWeight(x,y):
+    l, b = 8,8
+    weightmatrix = [[0 for i in range(l)] for j in range(b)]
+    weights = [[99, -8, 8, 6, 6, 8, -8, 99],[-8, -24, -4, -3, -3, -4, -24, -8], [8, -4, 7, 4, 4, 7, -4, 8], [6, -3, 4, 0, 0, 4,-3,-6
+                ],[6, -3, 4, 0, 0, 4, -3, -6],[8, -4, 7, 4, 4, 7, -4, 8], [-8, -24, -4, -3, -3, -4, -24, -8], [99, -8, 8, 6, 6, 8, -8, 99] ]
+    for i in range(8):
+        for j in range(8):
+            weightmatrix[i][j] = weights[i].__getitem__(j)
 
-def main():
-	global initArray, outputArray
-	currentPlayer,depth,initArray,inputArray = readFromFile('input.txt')
 
-	if currentPlayer=='X':
-		opponent='O'
-	else:
-		opponent='X'
-	
-	global actions
-	actions = {'Up':-10, 'Down':10, 'Left':-1, 'Right':1, 'UpLeft':-9, 'UpRight':9, 'DownRight':11, 'DownLeft':-11}
+    return weightmatrix[x][y]
 
-	outputArray=['Node,Depth,Value,Alpha,Beta', 'root,0,-Infinity,-Infinity,Infinity']
-	alpha = (-1)*float('inf')
-	beta = float('inf')
-	value=alpha
-	#print value, alpha, beta
-	currentPlayerPositionsArray = currentPlayerPositions(initArray, currentPlayer)
-	#logic
-	#find_move(initArray, outputArray, currentDepth, depth, value, alpha, beta, currentPlayer, opponent, lastModifiedPosition, currentPlayerPositionsArray, passCounter)
-	lastModifiedPosition=currentPlayerPositionsArray[0]
-	#print value, alpha,beta, lastModifiedPosition
-	value = find_move(initArray, outputArray, 1, depth, value, alpha, beta, currentPlayer, opponent, lastModifiedPosition, currentPlayerPositionsArray)
-	getOutputString(0,0,value,value,beta, outputArray)
+###Method to find the Expansion Values
+def getExpandValues(player):
+    if player == player_to_move:
+        best = -99999
+    else:
+        best = 99999
+    flag = True
+    while(flag == True):
+        alpha = -99999
+        beta = 99999
+        flag = False
+    return best, alpha, beta
 
-	#print value
-	#logic
-	inputArray = convertArray(initArray)
-	outputToFile('output.txt', inputArray, outputArray) #we will have to modify the input array to match the new version with the move for the current player.
+###Method to add recursive logs
+def recursive_log(best, result, trav_log, player):
+    if player == player_to_move:
+        trav_log += '\n' + "pass" + ',' + str(1) + ',' + str(best) + "," + str(result[2]) + "," + str( result[1])
+        trav_log += '\n' + "root" + ',' + str(0) + ',' + str(best) + "," + str(result[1]) + "," + str(-1*result[2])
 
-main()
+    else:
+        trav_log += '\n' + "pass" + ',' + str(1) + ',' + str(best) + "," + str(result[1]) + "," + str(result[2])
+        trav_log += '\n' + "root" + ',' + str(0) + ',' + str(best) + "," + str(result[2]) + "," + str(-1*result[1])
+
+        return trav_log
+
+def alphabetaPruning(board, depth, player):
+    val = ()
+    i = 0
+    global count
+    expansionvalues = getExpandValues(player)
+    best = expansionvalues[0]
+    alpha = expansionvalues[1]
+    beta = expansionvalues[2]
+    global trav_log
+    moves = []
+    ### Generates the moves suggested moves by player
+    moves = generate_moves(board, player)
+
+
+    finalboardmove = list()
+    if len(moves) > 0:
+
+        while(i < len(moves)):
+            new_board = deepcopy(board)
+            mv = Take_Move(new_board, moves[i], player)
+            new_board = mv
+
+            if(depth == Inputs["Depth"]):
+                trav_log += '\n' + "root" + "," + str(0) + "," + str(best) + "," + str(alpha) + "," + str(beta)
+            else:
+                trav_log += '\n' + "pass" + "," + str(Inputs["Depth"] - depth) + "," + str(best) + "," + str(alpha) + "," + str(beta)
+
+            if (player == player_to_move):
+                result = alphabeta(new_board, depth - 1, getOpponent(player), alpha, beta, moves[i])
+                val = max(result[0],best)
+                if not val >= beta:
+                    if alpha < min(beta, result[0]):
+                        if result[1] is not None:
+                            alpha = max(alpha,result[1])
+                        else:
+                            alpha = max(alpha, result[0])
+                    else:
+                        alpha = alpha
+                else:
+                    alpha = alpha
+            else:
+                result = alphabeta(new_board, depth - 1, player_to_move, alpha, beta, moves[i])
+                val = min(result[0],best)
+                if not val <= alpha:
+                    if alpha < min(beta, result[0]):
+                        if result[1] is not None:
+                            beta = min(beta, result[1])
+                        else:
+                            beta = min(beta, result[0])
+                    else:
+                        beta = beta
+                else:
+                    beta = beta
+            best = val
+            finalboardmove.append((best, moves[i]))
+            i += 1
+        if Inputs["Depth"] == depth:
+            trav_log += '\n' + "root" + "," + str(0) + "," + str(best) + "," + str(alpha) + "," + str(beta)
+
+    elif Inputs["Depth"] - depth == 0: #or count < 2:
+        Evaluation = getEvaluation(player_to_move, getOpponent(player_to_move), board)
+        trav_log += '\n' + "root" + ',' + str(Inputs["Depth"] - depth) + ',' + str(best) + "," + str(alpha) + "," + str(beta)
+        #if player == player_to_move:
+        result = alphabetaPruning(board, depth - 1, getOpponent(player))
+        val = result[0]
+        finalboardmove = result[3]
+
+        if player == player_to_move:
+            alpha = result[1]
+            beta = result[2]
+            if not val >= beta:
+                if alpha < min(beta, result[0]):
+                    if result[1] is not None:
+                        alpha = max(alpha,result[1])
+                    else:
+                        alpha = max(alpha, result[0])
+                else:
+                    alpha = alpha
+            else:
+                alpha = alpha
+
+            best = val
+            trav_log += '\n' + "pass" + ',' + str(1) + ',' + str(best) + "," + str(alpha) + "," + str(
+                beta)
+            trav_log += '\n' + "root" + ',' + str(0) + ',' + str(best) + "," + str(beta) + "," + str(-alpha
+                )
+
+
+        else:
+            alpha = result[1]
+            beta = result[2]
+            if not val <= alpha:
+                if alpha < min(beta, result[0]):
+                    if result[1] is not None:
+                        beta = min(beta, result[1])
+                    else:
+                        beta = min(beta, result[0])
+                else:
+                    beta = beta
+            else:
+                beta = beta
+            best = val
+            trav_log += '\n' + "pass" + ',' + str(1) + ',' + str(best) + "," + str(result[2]) + "," + str(
+                result[1])
+            trav_log += '\n' + "root" + ',' + str(0) + ',' + str(best) + "," + str(result[1]) + "," + str(
+                -1 * result[2])
+
+    else:
+        count = count+1
+        if count < 2:
+            if player == player_to_move:
+                trav_log += '\n' + "pass" + ',' + str(Inputs["Depth"] - depth) + ',' + str(best) + ',' + str(
+                    alpha) + ',' + str(beta)
+                result = alphabetaPruning(board, depth - 1, getOpponent(player))
+                val = result[0]
+                finalboardmove = result[3]
+                if alpha < min(beta, result[0]):
+                    if alpha < min(beta, result[0]):
+                        alpha = max(alpha, val)
+                    else:
+                        alpha = alpha
+                else:
+                    alpha = alpha
+                best = val
+
+            else:
+                trav_log += '\n' + "pass" + ',' + str(Inputs["Depth"] - depth) + ',' + str(best) + ',' + str(
+                    alpha) + ',' + str(beta)
+                result = alphabetaPruning(board, depth - 1, getOpponent(player))
+                val = result[0]
+                finalboardmove = result[3]
+                if alpha < min(beta, result[0]):
+                    if alpha < min(beta, result[0]):
+                        beta = min(beta, val)
+                    else:
+                        beta = beta
+                else:
+                    beta = beta
+                best = val
+
+        else:
+            Evaluation = getEvaluation(player, getOpponent(player), board)
+            trav_log += '\n' + "pass" + ',' + str(Inputs["Depth"]- depth) + ',' + str(Evaluation) + ',' + str(alpha) + ',' + str(beta)
+            return Evaluation, alpha, beta, finalboardmove
+
+
+
+    return best, alpha, beta, finalboardmove
+
+def alphabeta(board, depth, player, alpha, beta, move, passv = None):
+    global trav_log
+    moves = []
+    global count
+    ###Terminal test for leaf node.
+    if depth == 0:
+        utility = getEvaluation(player_to_move, getOpponent(player_to_move), board)
+        trav_log += '\n' + str(columnsadjust[move[1]]) + str(rowsadjust[move[0]]) + ',' + str(Inputs["Depth"]) + ',' + str(
+            utility) + "," + str(alpha) + "," + str(beta)
+        return utility, None, None
+
+    if player == player_to_move:
+        best = -99999
+    else:
+        best = 99999
+    moves = generate_moves(board, player)
+
+    if passv == None:
+        trav_log += "\n" + str(columnsadjust[move[1]]) + str(rowsadjust[move[0]]) + ',' + str(Inputs["Depth"]- depth) + ',' + \
+                        str(best) + "," + str(alpha) + "," + str(beta)
+    bool = True
+    if len(moves) >= 1:
+        i = 0
+
+        while(i < len(moves)):
+            while(bool == True):
+                newbeta = beta
+                newaplha = alpha
+                bool = False
+            if alpha < beta:
+                new_board = deepcopy(board)
+                mv = Take_Move(new_board, moves[i], player)
+                new_board = mv
+                if player == player_to_move:
+                    result = alphabeta(new_board, depth - 1, getOpponent(player), alpha, beta, moves[i])
+                    val = max(result[0], best)
+
+                    if not val >= beta:
+                        if alpha < min(beta, result[0]):
+                            if result[1] is not None:
+                                alpha = max(alpha,result[1])
+                            else:
+                                alpha = max(alpha, result[0])
+                        else:
+                            alpha = alpha
+                    else:
+                        alpha = alpha
+                        best = val
+                        trav_log += '\n' + str(columnsadjust[move[1]]) + str(rowsadjust[move[0]]) + ',' + \
+                                        str(Inputs["Depth"] - depth) + ',' + str(best) + ',' + str(alpha) + ',' + str(
+                            beta)
+                        return val, None, None
+
+                else:
+
+                    result = alphabeta(new_board, depth - 1, player_to_move, alpha, beta, moves[i])
+                    val = min(result[0], best)
+                    if not val <= alpha:
+                        if alpha < min(beta, result[0]):
+                            if result[1] is not None:
+                                beta = min(beta, result[1])
+                            else:
+                                beta = min(beta, result[0])
+                        else:
+                            beta = beta
+                    else:
+                        beta = beta
+                        best = val
+                        trav_log += '\n' + str(columnsadjust[move[1]]) + str(rowsadjust[move[0]]) + ',' + \
+                                        str(Inputs["Depth"] - depth) + ',' + str(best) + ',' + str(alpha) + ',' + str(
+                            beta)
+
+                        return val, None, None
+                best = val
+
+                if passv == None:
+                        trav_log +=  '\n' + str(columnsadjust[move[1]]) + str(rowsadjust[move[0]]) + ',' + \
+                                         str(Inputs["Depth"] - depth) + ',' + str(best) + ',' + str(alpha) + ',' + str(beta)
+
+                elif passv == True:
+                    trav_log += '\n' + "pass" + ',' + str(Inputs["Depth"] - depth) + ',' + str(best) + ',' + str(alpha) + ',' + str(beta)
+
+            ###use this for Pruning
+            else:
+                val = best
+                if player == player_to_move:
+                    return val, alpha, beta
+                return val, beta, alpha
+
+            i+=1
+
+
+    elif passv == None:
+
+        trav_log += '\n' + "pass" + ',' + str(
+        Inputs["Depth"] - depth+1) + ',' + str(-1*best) + ',' + str(alpha) + ',' + str(beta)
+        if player == player_to_move:
+            result = alphabeta(board, Inputs["Depth"] - depth, getOpponent(player), alpha, beta, move, True)
+            val = max(result[0], best)
+            if val >= beta:
+
+                if alpha < min(result[0], beta) and (val < beta):
+                    if result[1] is not None:
+                        alpha = max(alpha, result[1])
+                    else:
+                        alpha = max(alpha, result[0])
+                else:
+                    alpha = alpha
+            else:
+                alpha = alpha
+
+
+            trav_log += '\n' + str(columnsadjust[move[1]]) + str(rowsadjust[move[0]]) + ',' + \
+                            str(Inputs["Depth"] - depth) + ',' + str(val) + ',' + str(alpha) + ',' + str(beta)
+        else:
+            result = alphabeta(board, Inputs["Depth"] - depth, getOpponent(player), alpha, beta, move, True)
+            val = min(result[0], best)
+
+            if alpha < min(result[0], beta):
+                if result[1] is not None:
+                    beta = min(beta, result[1])
+                else:
+                    beta = min(beta, result[0])
+            else:
+                beta = beta
+
+            trav_log += '\n' + str(columnsadjust[move[1]]) + str(rowsadjust[move[0]]) + ',' + \
+                            str(Inputs["Depth"] - depth) + ',' + str(val) + ',' + str(alpha) + ',' + str(beta)
+
+
+        if player == player_to_move:
+            return val, alpha, beta
+        return val, beta, alpha
+
+    elif passv == True:
+
+        count = count + 1
+
+        if count < 2:
+            if player == player_to_move:
+
+                result = alphabeta(board, Inputs["Depth"] - depth, getOpponent(player), alpha, beta, move, True)
+                val = max(result[0], best)
+
+                if alpha < min(result[0], beta):
+                    if result[1] is not None:
+                        alpha = max(alpha, result[1])
+                    else:
+                        alpha = max(alpha, result[0])
+                else:
+                    alpha = alpha
+
+                trav_log += '\n' + "pass" + ',' + \
+                                str(Inputs["Depth"] - depth) + ',' + str(val) + ',' + str(alpha) + ',' + str(beta)
+
+            else:
+                result = alphabeta(board, Inputs["Depth"] - depth, player_to_move, alpha, beta, move, True)
+                val = min(result[0], best)
+
+                if beta < min(result[0], alpha):
+                    if result[1] is not None:
+                        beta = min(beta, result[1])
+                    else:
+                        beta = min(beta, result[0])
+                else:
+                    beta = beta
+
+                trav_log += '\n' + "pass "+ ',' + \
+                                str(Inputs["Depth"] - depth) + ',' + str(val) + ',' + str(alpha) + ',' + str(beta)
+
+        else:
+            utility = getEvaluation(player_to_move, getOpponent(player_to_move), board)
+            trav_log += '\n' + "pass" + ',' + str(Inputs["Depth"]) + ',' + str(
+                utility) + "," + str(alpha) + "," + str(beta)
+            # count = count -1
+            return utility, None, None
+
+    if player == player_to_move:
+        return val, alpha, beta
+    else:
+        return val, beta, alpha
+
+
+best_move_ = list()
+count = 0
+final_move_ = alphabetaPruning(start_board, Inputs["Depth"], player_to_move)
+best_moves = final_move_[3]
+
+def getFinalBoard(best_moves):
+    if(len(best_moves) > 0):
+        i = 0
+        best_move =best_moves[0]
+
+        while i < len(best_moves):
+            if(best_moves)[i][0]>best_move[0]:
+                best_move = best_moves[i]
+            i += 1
+
+        board = deepcopy(start_board)
+        finalBoard = Take_Move(board, best_move[1], player_to_move)
+
+    else:
+        finalBoard = start_board
+    return finalBoard
+
+finalBoard = getFinalBoard(best_moves)
+
+trav_log = trav_log.replace("-99999", "-Infinity")
+trav_log = trav_log.replace("99999", "Infinity")
+
+Final = str()
+i = 0
+while i < len(finalBoard):
+    line = str(finalBoard[i]).replace(']', '')
+    line = line.replace(',', '')
+    line = line.replace("\'", '')
+    line = line.replace(" ", '')
+    line = line.replace('[', '')
+    Final += line + '\n'
+    i += 1
+
+Output = open("output.txt", "w")
+Output.writelines(Final + "Node,Depth,Value,Alpha,Beta" + trav_log)
+Output.close()
